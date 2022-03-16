@@ -6,6 +6,7 @@ from typing import Union
 
 # Global Functions
 
+
 def key(_):
     """Used to define the api key to be used"""
     global _Key
@@ -57,7 +58,7 @@ def get_v3(request):
 def get_bankrecs(nation=None, nid=None):
     if nid is None:
         nid = nation.nid
-    return get_v3(f"query{{bankrecs(or_id:{nid}){{data{{id, date, sid, stype, rid, rtype, pid, note, money, coal, oil, uranium, iron, bauxite, lead, gasoline, munitions, steel, aluminum, food, tax_id}}}}}}")['bankrecs']['data']
+    return get_v3(f"query{{bankrecs(or_id:{nid}){{data{{id, date, sid, stype, rid, rtype, pid, note, {_Request_Res}, tax_id}}}}}}")['bankrecs']['data']
 
 
 # Classes
@@ -70,6 +71,11 @@ class City:
     Used to store, retrieve update and calculate information about a city.
     """
 
+    request_data = "id, name, date, infrastructure, land, powered, oilpower, windpower, coalpower, nuclearpower, " \
+                   "coalmine, oilwell, uramine, barracks, farm, policestation, hospital, recyclingcenter, subway, " \
+                   "supermarket, bank, mall, stadium, leadmine, ironmine, bauxitemine, gasrefinery, aluminumrefinery, "\
+                   "steelmill, munitionsfactory, factory, airforcebase, drydock, date "
+
     __slots__ = "cid", "name", "infra", "land", "nid", "powered", "founded", "imps", "coal_power_plant", \
         "oil_power_plant", "wind_power_plant", "nuclear_power_plant", "coal_mine", "oil_well", "uranium_mine", "farm", \
         "police_station", "barracks", "hospital", "recycling_center", "subway", "supermarket", "bank", "mall", \
@@ -79,6 +85,12 @@ class City:
 
     def __init__(self, cid):
         self.cid = cid
+
+    def update_short(self, city=None):
+        if city is None:
+            request = f"cities(id:{self.cid}){{data{{id, name, date, infrastructure, land, powered, oilpower, windpower, coalpower, nuclearpower, coalmine, oilwell, uramine, barracks, farm, policestation, hospital, recyclingcenter, subway, supermarket, bank, mall, stadium, leadmine, ironmine, bauxitemine, gasrefinery, aluminumrefinery, steelmill, munitionsfactory, factory, airforcebase, drydock, date}}}}"
+            city = get_v3(request)["cities"]["data"][0]
+        # TODO: Handle assigning values here
 
 
 class Cities(collections.MutableMapping):
@@ -103,12 +115,12 @@ class Cities(collections.MutableMapping):
     def __setitem__(self, cid=None, city=None) -> None:
         if city:
             if type(city) is City:
-                if city.nid:
+                if city.cid:
                     if cid:
                         if city.nid == cid:
                             self.mapping[cid] = city
                         else:
-                            raise WrongCID
+                            raise WrongCID("You gave both a CID and a City() and their CIDs don't match")
                     else:
                         self.mapping[city["nid"]] = city
                 else:
@@ -125,17 +137,27 @@ class Cities(collections.MutableMapping):
         else:
             raise ValueError
 
-    def __getitem__(self, nid: Union[int, str]):
-        if type(nid) is int:
-            return self.mapping[nid]
-        elif type(nid) is str:
-            if nid.isnumeric():
-                return self.mapping[int(nid)]
+    def __getitem__(self, cid: Union[int, str]):
+        if type(cid) is int:
+            return self.mapping[cid]
+        elif type(cid) is str:
+            if cid.isnumeric():
+                return self.mapping[int(cid)]
 
-    def __delitem__(self, nid):
-        value = self[nid]
-        del self.mapping[nid]
+    def __delitem__(self, cid):
+        value = self[cid]
+        del self.mapping[cid]
         self.pop(value, None)
+
+    def update_short(self, cities):
+        if cities is None:
+            request = f"cities(id:{self.keys()}){{data{{ {City.request_data} }}}}"
+            cities = get_v3(request)["cities"]["data"]
+        for city in cities:
+            try:
+                self[city["id"]].update_short(city)
+            except KeyError:
+                self.__setitem__(city["id"], City(city))
 
 
 class Nation:
@@ -144,45 +166,28 @@ class Nation:
                 "espionage", "login", "mil", "soldiers", "tanks", "planes", "ships", "missiles", "nukes", "treasures", \
                 "cities"
 
+    request_data = "id, alliance_id, alliance_position, nation_name, leader_name, continent, warpolicy, dompolicy, " \
+                   "color, score, population, flag, vmode, beigeturns, espionage_available, last_active, soldiers, " \
+                   "tanks, aircraft, ships, missiles, nukes, treasures {{name}}, ironw, bauxitew, armss, egr, " \
+                   "massirr, itc, mlp, nrf, irond, vds, cia, cfce, propb, uap, city_planning, adv_city_planning, " \
+                   "space_program, spy_satellite, moon_landing, pirate_economy, recycling_initiative, " \
+                   "telecom_satellite, green_tech, arable_land_agency, clinical_research_center, " \
+                   "specialized_police_training, adv_engineering_corps, "
+
     def __init__(self, nid=None):
         self.nid = nid
+        self.cities = Cities()
 
     def update_long(self, nation=None):
         if nation is None:
-            request = f"""{{
-                            nations(id: {[self.nid]} first:100){{data {{
-                                id, alliance_id, alliance_position, nation_name, leader_name, continent, warpolicy, 
-                                dompolicy, color, score, population, flag, vmode, beigeturns, espionage_available, 
-                                last_active, soldiers, tanks, aircraft, ships, missiles, nukes, treasures {{name}}, 
-                                ironw, bauxitew, armss, egr, massirr, itc, mlp, nrf, irond, vds, cia, cfce, propb, uap, 
-                                city_planning, adv_city_planning, space_program, spy_satellite, moon_landing, 
-                                pirate_economy, recycling_initiative, telecom_satellite, green_tech, arable_land_agency, 
-                                clinical_research_center, specialized_police_training, adv_engineering_corps
-                                cities{{
-                                    id, name, date, infrastructure, land, powered, oilpower, windpower, coalpower, 
-                                    nuclearpower, coalmine, oilwell, uramine, barracks, farm, policestation, hospital, 
-                                    recyclingcenter, subway, supermarket, bank, mall, stadium, leadmine, ironmine, 
-                                    bauxitemine, gasrefinery, aluminumrefinery, steelmill, munitionsfactory, factory, 
-                                    airforcebase, drydock, date
-                                }}
-                            }}}}
-                        }}"""
+            request = f"""{{nations(id: {[self.nid]} first:100){{data{{ {Nation.request_data} cities{City.request_data} }}}}}}"""
             nation = get_v3(request)['nations']['data'][0]
-        cities = nation.pop("cities")
+        self.cities.update_short(nation.pop("cities"))
         self.update_short(nation)
-        self.cities.update_long(cities=cities, projects=[x for x in [x for x, y in self.projects.items() if y is True] if x in ["recycling_initiative", "emergency_gasoline_reserve", "ironworks", "bauxiteworks", "arms_stockpile", "uranium_enrichment_program", "mass_irrigation", "international_trade_center", "clinical_research_center", "specialized_police_training_program", "telecoms_satellite", "green_technology"]])
 
     def update_short(self, nation=None):
         if nation is None:
-            request = f"""{{
-                nations(id: {[self.nid]} first:100){{data {{
-                id, alliance_id, alliance_position, nation_name, leader_name, continent, warpolicy, dompolicy, color, 
-                score, population, flag, vmode, beigeturns, espionage_available, last_active, soldiers, tanks, aircraft, 
-                ships, missiles, nukes, treasures {{name}}, ironw, bauxitew, armss, egr, massirr, itc, mlp, nrf, irond, 
-                vds, cia, cfce, propb, uap, city_planning, adv_city_planning, space_program, spy_satellite, 
-                moon_landing, pirate_economy, recycling_initiative, telecom_satellite, green_tech, arable_land_agency, 
-                clinical_research_center, specialized_police_training, adv_engineering_corps}}}}
-            }}"""
+            request = f"""{{nations(id: {self.nid} first:1){{data{{ {Nation.request_data} }}}}}}"""
             nation = get_v3(request)['nations']['data'][0]
         self.nation_name = nation.pop("nation_name")
         self.leader_name = nation.pop("leader_name")
@@ -279,6 +284,16 @@ class Nations(collections.MutableMapping):
         del self.mapping[nid]
         self.pop(value, None)
 
+    def update_long(self, nations=None):
+        if nations is None:
+            request = f""
+            nations = get_v3(request)["nations"]["data"][0]
+        for nation in nations:
+            try:
+                self[nation["id"]].update_long(nation)
+            except KeyError:
+                self.__setitem__(nation["id"], Nation(nation))
+
 
 class Alliance:
     """
@@ -296,13 +311,16 @@ class Alliance:
 
     def update_long(self, alliance=None):
         if alliance is None:
+            # TODO: sort out this request
+            # note: will need to be updated to handle treaties when v3 treaties are working
             request = f""
             alliance = get_v3(request)["alliances"]["data"][0]
         self.nations.update_long(alliance.pop("nations"))
-        global _Treaties.update_long(alliance.pop("treaties"))
+        # TODO: These are commented out awaiting treaties to function in APIv3
+        # global _Treaties
+        # _Treaties.update_long(alliance.pop("treaties"))
 
         self.update_short(alliance)
-
 
     def update_short(self, alliance=None):
         if alliance is None:
@@ -417,6 +435,7 @@ class WrongCID(Exception):
 
 _Key = ""
 _Treaties = Treaties()
+_Request_Res = "money, coal, oil, uranium, iron, bauxite, lead, gasoline, munitions, steel, aluminum, food"
 
 # On accidental run
 
