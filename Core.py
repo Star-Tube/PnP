@@ -4,6 +4,13 @@ import json
 import collections.abc as collections
 from typing import Union
 
+
+# Logging shiz
+
+import logging
+logging.basicConfig(level=logging.DEBUG)
+log = logging.getLogger(__name__)
+
 # Global Functions
 
 
@@ -13,16 +20,19 @@ def key(_):
     _Key = _
 
 
-def send_message(recipient, message, subject):
+def send_message(recipient, message, subject, sent=[6]):
     """
     Takes in recipient, message and subject and sends the message. Returns any response to the action.
 
     Recipient can be either a Nation() or a Nations() object. If it is given a Nations() object then it will send the
     message to every nation.
 
+    Optional parameter sent will ignore nations with the given id.
+
     :param recipient:
     :param message:
     :param subject:
+    :param sent:
     :return:
     """
     url = "https://politicsandwar.com/api/send-message/"
@@ -45,9 +55,11 @@ def get(url, payload=None):
     :param url:
     :return:
     """
+    log.debug(url)
+    log.debug(payload)
     response = json.loads(requests.post(url, json=payload).text)
     if "errors" in response.keys():
-        raise InvalidRequest(response)
+        raise InvalidRequest(response, payload)
     return response
 
 
@@ -91,7 +103,7 @@ class City:
 
     def update_short(self, city=None):
         if city is None:
-            request = f"cities(id:{self.cid}){{data{{id, name, date, infrastructure, land, powered, oilpower, windpower, coalpower, nuclearpower, coalmine, oilwell, uramine, barracks, farm, policestation, hospital, recyclingcenter, subway, supermarket, bank, mall, stadium, leadmine, ironmine, bauxitemine, gasrefinery, aluminumrefinery, steelmill, munitionsfactory, factory, airforcebase, drydock, date}}}}"
+            request = f"cities(id:{self.cid}){{data{{ { City.request_data } }}}}"
             city = get_v3(request)["cities"]["data"][0]
         if self.cid == city.pop("id"):
             self.name = city.pop("name")
@@ -152,7 +164,7 @@ class Cities(collections.MutableMapping):
             if type(city) is City:
                 if city.cid:
                     if cid:
-                        if city.nid == cid:
+                        if city.cid == cid:
                             self.mapping[cid] = city
                         else:
                             raise WrongCID("You gave both a CID and a City() and their CIDs don't match")
@@ -203,21 +215,26 @@ class Nation:
 
     request_data = "id, alliance_id, alliance_position, nation_name, leader_name, continent, warpolicy, dompolicy, " \
                    "color, score, population, flag, vmode, beigeturns, espionage_available, last_active, soldiers, " \
-                   "tanks, aircraft, ships, missiles, nukes, treasures {{name}}, ironw, bauxitew, armss, egr, " \
+                   "tanks, aircraft, ships, missiles, nukes, treasures {name}, ironw, bauxitew, armss, egr, " \
                    "massirr, itc, mlp, nrf, irond, vds, cia, cfce, propb, uap, city_planning, adv_city_planning, " \
                    "space_program, spy_satellite, moon_landing, pirate_economy, recycling_initiative, " \
                    "telecom_satellite, green_tech, arable_land_agency, clinical_research_center, " \
                    "specialized_police_training, adv_engineering_corps, "
 
-    def __init__(self, nid=None):
+    def __init__(self, nid=None, nation=None):
         self.nid = nid
         self.cities = Cities()
+        if nation is not None:
+            self.update_long(nation)
 
     def update_long(self, nation=None):
         if nation is None:
-            request = f"""{{nations(id: {[self.nid]} first:100){{data{{ {Nation.request_data} cities{City.request_data} }}}}}}"""
+            request = f"""{{nations(id: {self.nid} first:100){{data{{ {Nation.request_data} cities{City.request_data} }}}}}}"""
             nation = get_v3(request)['nations']['data'][0]
-        self.cities.update_short(nation.pop("cities"))
+        try:
+            self.cities.update_short(nation.pop("cities"))
+        except KeyError:
+            pass
         self.update_short(nation)
 
     def update_short(self, nation=None):
@@ -251,6 +268,7 @@ class Nation:
         self.missiles = nation.pop("missiles")
         self.nukes = nation.pop("nukes")
         self.treasures = nation.pop("treasures")
+        # Not sure if projects here should be a dictionary or if every seperate project should be it's own boolean slot
         self.projects = {
             "iron_works": nation.pop("ironw"), "bauxite_works": nation.pop("bauxitew"),
             "arms_stockpile": nation.pop("armss"),
@@ -279,6 +297,17 @@ class Nations(collections.MutableMapping):
     Used to store multiple Nation()'s and manage them more conveniently.
     """
 
+    @staticmethod
+    def paginate(check, data):
+        for page in range(100):
+            request = f"{{nations({check}, first:100, page:{page + 1}){{data{{{data}}}paginatorInfo{{count}}}}}}"
+            response = get_v3(request)["nations"]
+            nations = response["data"]
+            if response["paginatorInfo"]["count"] == 0:
+                break
+            for nation in nations:
+                yield nation
+
     def __init__(self, *args, **kwargs):
         self.mapping = {}
         self.update(kwargs)
@@ -299,7 +328,7 @@ class Nations(collections.MutableMapping):
                         if nation.nid == nid:
                             self.mapping[nid] = nation
                         else:
-                            raise WrongNID
+                            raise WrongNID(nation.nid, nid)
                     else:
                         self.mapping[nation["nid"]] = nation
                 else:
@@ -319,15 +348,33 @@ class Nations(collections.MutableMapping):
         del self.mapping[nid]
         self.pop(value, None)
 
-    def update_long(self, nations=None):
+    def update_long(self, nations=None, static=True, requirements=None):
         if nations is None:
-            request = f""
-            nations = get_v3(request)["nations"]["data"][0]
+            # TODO: Fix this request
+            if static:
+                request = f"{{nations(id: {self.keys()} first:100){{data{{ {Nation.request_data} cities{{ {City.request_data} }}}}}}"
+                nations = get_v3(request)["nations"]["data"][0]
+            else:
+                nations = Nations.paginate(requirements, f"{Nation.request_data} cities{{ {City.request_data} }}")
         for nation in nations:
             try:
                 self[nation["id"]].update_long(nation)
             except KeyError:
-                self.__setitem__(nation["id"], Nation(nation))
+                self.__setitem__(nation["id"], Nation(nation["id"], nation))
+
+    def update_short(self, nations=None, static=True, requirements=None):
+        if nations is None:
+            # TODO: Fix this request
+            if static:
+                request = f"{{nations(id: {self.keys()} first:100){{data{{ {Nation.request_data}}}}}"
+                nations = get_v3(request)["nations"]["data"][0]
+            else:
+                nations = Nations.paginate(requirements, f"{Nation.request_data}")
+        for nation in nations:
+            try:
+                self[nation["id"]].update_short(nation)
+            except KeyError:
+                self.__setitem__(nation["id"], Nation(nation["id"], nation))
 
 
 class Alliance:
