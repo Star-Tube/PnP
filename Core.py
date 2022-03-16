@@ -13,22 +13,25 @@ def key(_):
     _Key = _
 
 
-def send_message(to, message, subject):
+def send_message(recipient, message, subject):
     """
     Takes in recipient, message and subject and sends the message. Returns any response to the action.
 
-    :param to:
+    Recipient can be either a Nation() or a Nations() object. If it is given a Nations() object then it will send the
+    message to every nation.
+
+    :param recipient:
     :param message:
     :param subject:
     :return:
     """
     url = "https://politicsandwar.com/api/send-message/"
-    if type(to) is Nation:
-        payload = {"key": _Key, "to": to.nid, "message": message, "subject": subject}
+    if type(recipient) is Nation:
+        payload = {"key": _Key, "to": recipient.nid, "message": message, "subject": subject}
         response = json.loads(requests.post(url, payload).text)
         return response
-    elif type(to) is Nations:
-        for nation in to:
+    elif type(recipient) is Nations:
+        for nation in recipient:
             payload = {"key": _Key, "to": nation.nid, "message": message, "subject": subject}
             response = json.loads(requests.post(url, payload).text)
             yield response
@@ -74,7 +77,7 @@ class City:
     request_data = "id, name, date, infrastructure, land, powered, oilpower, windpower, coalpower, nuclearpower, " \
                    "coalmine, oilwell, uramine, barracks, farm, policestation, hospital, recyclingcenter, subway, " \
                    "supermarket, bank, mall, stadium, leadmine, ironmine, bauxitemine, gasrefinery, aluminumrefinery, "\
-                   "steelmill, munitionsfactory, factory, airforcebase, drydock, date "
+                   "steelmill, munitionsfactory, factory, airforcebase, drydock, date"
 
     __slots__ = "cid", "name", "infra", "land", "nid", "powered", "founded", "imps", "coal_power_plant", \
         "oil_power_plant", "wind_power_plant", "nuclear_power_plant", "coal_mine", "oil_well", "uranium_mine", "farm", \
@@ -90,7 +93,39 @@ class City:
         if city is None:
             request = f"cities(id:{self.cid}){{data{{id, name, date, infrastructure, land, powered, oilpower, windpower, coalpower, nuclearpower, coalmine, oilwell, uramine, barracks, farm, policestation, hospital, recyclingcenter, subway, supermarket, bank, mall, stadium, leadmine, ironmine, bauxitemine, gasrefinery, aluminumrefinery, steelmill, munitionsfactory, factory, airforcebase, drydock, date}}}}"
             city = get_v3(request)["cities"]["data"][0]
-        # TODO: Handle assigning values here
+        if self.cid == city.pop("id"):
+            self.name = city.pop("name")
+            self.founded = city.pop("date")
+            self.infra = city.pop("infrastructure")
+            self.land = city.pop("land")
+            self.powered = city.pop("powered")
+            self.oil_power_plant = city.pop("oilpower")
+            self.wind_power_plant = city.pop("windpower")
+            self.coal_power_plant = city.pop("coalpower")
+            self.nuclear_power_plant = city.pop("nuclearpower")
+            self.coal_mine = city.pop("coalmine")
+            self.oil_well = city.pop("oilwell")
+            self.uranium_mine = city.pop("uramine")
+            self.barracks = city.pop("barracks")
+            self.farm = city.pop("farm")
+            self.police_station = city.pop("policestation")
+            self.hospital = city.pop("hospital")
+            self.recycling_center = city.pop("recyclingcenter")
+            self.subway = city.pop("subway")
+            self.supermarket = city.pop("supermarket")
+            self.bank = city.pop("bank")
+            self.mall = city.pop("mall")
+            self.stadium = city.pop("stadium")
+            self.lead_mine = city.pop("leadmine")
+            self.iron_mine = city.pop("ironmine")
+            self.bauxite_mine = city.pop("bauxitemine")
+            self.gas_refinery = city.pop("gasrefinery")
+            self.aluminium_refinery = city.pop("aluminumrefinery")
+            self.steel_mill = city.pop("steelmill")
+            self.munitions_factory = city.pop("munitionsfactory")
+            self.factory = city.pop("factory")
+            self.airforcebase = city.pop("airforcebase")
+            self.drydock = city.pop("drydock")
 
 
 class Cities(collections.MutableMapping):
@@ -301,6 +336,10 @@ class Alliance:
 
     Used to store, retrieve update and calculate information about a nation.
     """
+
+    request_data = "id, name, acronym, score, color, date, acceptmem, flag, forumlink, irclink, money, coal, oil, " \
+                   "uranium, iron, bauxite, lead, gasoline, munitions, steel, aluminum, food "
+
     __slots__ = "aaid", "nations", "name", "acronym", "score", "color", "founded", "accepting_members", "flag", \
                 "forum_link", "irc_link", "money", "coal", "oil", "uranium", "iron", "bauxite", "lead", "gasoline", \
                 "munitions", "steel", "aluminum", "food"
@@ -311,9 +350,8 @@ class Alliance:
 
     def update_long(self, alliance=None):
         if alliance is None:
-            # TODO: sort out this request
-            # note: will need to be updated to handle treaties when v3 treaties are working
-            request = f""
+            # TODO: update this request to handle treaties when that is fixed (Village fucking fix ya shod)
+            request = f"query{{alliances(id: {self.aaid}) {{data {{ {Alliance.request_data}, nations{{ { Nation.request_data } }} }}}}}}"
             alliance = get_v3(request)["alliances"]["data"][0]
         self.nations.update_long(alliance.pop("nations"))
         # TODO: These are commented out awaiting treaties to function in APIv3
@@ -324,7 +362,7 @@ class Alliance:
 
     def update_short(self, alliance=None):
         if alliance is None:
-            request = f"query{{alliances(id: {self.aaid}) {{data {{id, name, acronym, score, color, date, acceptmem, flag, forumlink, irclink, money, coal, oil, uranium, iron, bauxite, lead, gasoline, munitions, steel, aluminum, food}}}}}}"
+            request = f"query{{alliances(id: {self.aaid}) {{data {{ {Alliance.request_data} }}}}}}"
             alliance = get_v3(request)['alliances']['data'][0]
         self.name = alliance.pop("name")
         self.acronym = alliance.pop("acronym")
