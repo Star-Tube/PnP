@@ -299,7 +299,9 @@ class Alliance:
             request = f""
             alliance = get_v3(request)["alliances"]["data"][0]
         self.nations.update_long(alliance.pop("nations"))
-        global _Treaties.update()
+        global _Treaties.update_long(alliance.pop("treaties"))
+
+        self.update_short(alliance)
 
 
     def update_short(self, alliance=None):
@@ -334,10 +336,47 @@ class Treaty:
         pass
 
 
-class Treaties:
-    def __init__(self):
-        pass
+class Treaties(collections.MutableSet):
+    def __init__(self, treaties=None):
+        self.elements = set()
+        if treaties is not None:
+            for treaty in treaties:
+                if treaty not in self.elements:
+                    self.elements.add(treaty)
 
+    def __contains__(self, treaty: Treaty):
+        if treaty in self.elements:
+            return True
+        return False
+
+    def add(self, treaty: Treaty):
+        if type(treaty) is Treaty:
+            if treaty not in self.elements:
+                self.elements.add(treaty)
+                return True
+            else:
+                return False
+        else:
+            raise TypeError("Not a treaty")
+
+    def discard(self, treaty: Treaty):
+        if type(treaty) is Treaty:
+            if treaty in self.elements:
+                self.elements.discard(treaty)
+                return True
+            else:
+                return False
+        else:
+            raise TypeError("Not a treaty")
+
+    def __len__(self):
+        return self.elements.__len__()
+
+    def __iter__(self):
+        return self.elements.__iter__()
+
+    def update_long(self, treaties):
+        pass
 
 
 # Exceptions
@@ -379,7 +418,7 @@ class WrongCID(Exception):
 _Key = ""
 _Treaties = Treaties()
 
-# when imported setup stuff
+# On accidental run
 
-def __init__():
-    _Treaties = Treaties()
+if __name__ == "__main__":
+    print("I am a package. Feel free to check my docs to see how to use me properly.")
