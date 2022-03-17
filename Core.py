@@ -20,12 +20,12 @@ def key(_):
     _Key = _
 
 
-def send_message(recipient, message, subject, sent=[6]):
+def send_message(recipient, message: str, subject: str, sent: list = None):
     """
     Takes in recipient, message and subject and sends the message. Returns any response to the action.
 
-    Recipient can be either a Nation() or a Nations() object. If it is given a Nations() object then it will send the
-    message to every nation.
+    Recipient can be either a Nation(), an int() or a Nations() object. If it is given a Nations() object then it will
+    send the message to every nation.
 
     Optional parameter sent will ignore nations with the given id.
 
@@ -36,15 +36,21 @@ def send_message(recipient, message, subject, sent=[6]):
     :return:
     """
     url = "https://politicsandwar.com/api/send-message/"
-    if type(recipient) is Nation:
+    sent = [6] + sent
+    if type(recipient) is int:
+        payload = {"key": _Key, "to": recipient, "message": message, "subject": subject}
+        response = json.loads(requests.post(url, payload).text)
+        return response
+    elif type(recipient) is Nation:
         payload = {"key": _Key, "to": recipient.nid, "message": message, "subject": subject}
         response = json.loads(requests.post(url, payload).text)
         return response
     elif type(recipient) is Nations:
         for nation in recipient:
-            payload = {"key": _Key, "to": nation.nid, "message": message, "subject": subject}
-            response = json.loads(requests.post(url, payload).text)
-            yield response
+            if nation.nid not in sent:
+                payload = {"key": _Key, "to": nation.nid, "message": message, "subject": subject}
+                response = json.loads(requests.post(url, payload).text)
+                yield response
 
 
 def get(url, payload=None):
@@ -73,7 +79,9 @@ def get_v3(request):
 def get_bankrecs(nation=None, nid=None):
     if nid is None:
         nid = nation.nid
-    return get_v3(f"query{{bankrecs(or_id:{nid}){{data{{id, date, sid, stype, rid, rtype, pid, note, {_Request_Res}, tax_id}}}}}}")['bankrecs']['data']
+    return get_v3(f"query{{bankrecs(or_id:{nid}){{"
+                  f"    data{{id, date, sid, stype, rid, rtype, pid, note, {_Request_Res}, tax_id}}}}"
+                  f"}}")['bankrecs']['data']
 
 
 # Classes
@@ -229,7 +237,9 @@ class Nation:
 
     def update_long(self, nation=None):
         if nation is None:
-            request = f"""{{nations(id: {self.nid} first:100){{data{{ {Nation.request_data} cities{City.request_data} }}}}}}"""
+            request = f"{{nations(id: {self.nid} first:100){{" \
+                      f"data{{ {Nation.request_data} cities{City.request_data} }}" \
+                      f"}}}}"
             nation = get_v3(request)['nations']['data'][0]
         try:
             self.cities.update_short(nation.pop("cities"))
@@ -350,9 +360,10 @@ class Nations(collections.MutableMapping):
 
     def update_long(self, nations=None, static=True, requirements=None):
         if nations is None:
-            # TODO: Fix this request
             if static:
-                request = f"{{nations(id: {self.keys()} first:100){{data{{ {Nation.request_data} cities{{ {City.request_data} }}}}}}"
+                request = f"{{nations(id: {self.keys()} first:100){{data{{" \
+                          f"{Nation.request_data} cities{{ {City.request_data} }}" \
+                          f"}}}}"
                 nations = get_v3(request)["nations"]["data"][0]
             else:
                 nations = Nations.paginate(requirements, f"{Nation.request_data} cities{{ {City.request_data} }}")
@@ -364,7 +375,6 @@ class Nations(collections.MutableMapping):
 
     def update_short(self, nations=None, static=True, requirements=None):
         if nations is None:
-            # TODO: Fix this request
             if static:
                 request = f"{{nations(id: {self.keys()} first:100){{data{{ {Nation.request_data}}}}}"
                 nations = get_v3(request)["nations"]["data"][0]
@@ -398,7 +408,9 @@ class Alliance:
     def update_long(self, alliance=None):
         if alliance is None:
             # TODO: update this request to handle treaties when that is fixed (Village fucking fix ya shod)
-            request = f"query{{alliances(id: {self.aaid}) {{data {{ {Alliance.request_data}, nations{{ { Nation.request_data } }} }}}}}}"
+            request = f"query{{alliances(id: {self.aaid}) {{" \
+                      f"data {{ {Alliance.request_data}, nations{{ { Nation.request_data } }} }}" \
+                      f"}}}}"
             alliance = get_v3(request)["alliances"]["data"][0]
         self.nations.update_long(alliance.pop("nations"))
         # TODO: These are commented out awaiting treaties to function in APIv3
@@ -435,8 +447,10 @@ class Alliance:
 
 
 class Treaty:
-    def __init__(self):
-        pass
+    def __init__(self, members: tuple, treaty_type: str, date):
+        self.members = members
+        self.treaty_type = treaty_type
+        self.date = date
 
 
 class Treaties(collections.MutableSet):
