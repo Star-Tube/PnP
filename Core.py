@@ -84,6 +84,13 @@ def get_bankrecs(nation=None, nid=None):
                   f"}}")['bankrecs']['data']
 
 
+def war_range(score: int):
+    return score*0.75, score*1.75
+
+
+def espionage_range(score: int):
+    return score*0.4, score*2.50
+
 # Classes
 
 
@@ -298,6 +305,12 @@ class Nation:
             "specialized_police_training": nation.pop("specialized_police_training"),
             "advanced_engineering_corps": nation.pop("adv_engineering_corps")
         }
+
+    def war_range(self):
+        if self.score is int:
+            return war_range(self.score)
+        else:
+            raise TypeError(f"{self.__name__}.score is not an int")
 
 
 class Nations(collections.MutableMapping):
