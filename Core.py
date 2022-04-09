@@ -4,20 +4,11 @@ import json
 import collections.abc as collections
 from typing import Union
 
-
-# Logging shiz
-
-import logging
-logging.basicConfig(level=logging.DEBUG)
-log = logging.getLogger(__name__)
+from Exceptions import WrongID, NoID
+from Utils import war_range, get_v3
+from Config import _Request_Res, _Key
 
 # Global Functions
-
-
-def key(_):
-    """Used to define the api key to be used"""
-    global _Key
-    _Key = _
 
 
 def send_message(recipient, message: str, subject: str, sent: list = None):
@@ -53,43 +44,12 @@ def send_message(recipient, message: str, subject: str, sent: list = None):
                 yield response
 
 
-def get(url, payload=None):
-    """
-    Used to make a call to an API.
-
-    :param payload:
-    :param url:
-    :return:
-    """
-    log.debug(url)
-    log.debug(payload)
-    response = json.loads(requests.post(url, json=payload).text)
-    if "errors" in response.keys():
-        raise InvalidRequest(response, payload)
-    return response
-
-
-def get_v3(request):
-    url = f"https://api.politicsandwar.com/graphql?api_key={_Key}"
-    payload = {"query": request}
-    response = get(url, payload)
-    return response["data"]
-
-
-def get_bankrecs(nation=None, nid=None):
-    if nid is None:
-        nid = nation.nid
-    return get_v3(f"query{{bankrecs(or_id:{nid}){{"
+def get_bankrecs(nation):
+    if type(nation) is Nation:
+        nation = nation.nid
+    return get_v3(f"query{{bankrecs(or_id:{nation}){{"
                   f"    data{{id, date, sid, stype, rid, rtype, pid, note, {_Request_Res}, tax_id}}}}"
                   f"}}")['bankrecs']['data']
-
-
-def war_range(score: int):
-    return score*0.75, score*1.75
-
-
-def espionage_range(score: int):
-    return score*0.4, score*2.50
 
 # Classes
 
@@ -182,11 +142,11 @@ class Cities(collections.MutableMapping):
                         if city.cid == cid:
                             self.mapping[cid] = city
                         else:
-                            raise WrongCID("You gave both a CID and a City() and their CIDs don't match")
+                            raise WrongID("City", city.id, cid)
                     else:
                         self.mapping[city["nid"]] = city
                 else:
-                    raise NoCID
+                    raise NoID
             else:
                 raise TypeError
         elif type(cid) is int:
@@ -195,7 +155,7 @@ class Cities(collections.MutableMapping):
             if cid.isnumeric():
                 self.mapping[int(cid)] = City(int(cid))
             else:
-                raise WrongCID
+                raise WrongID("City", "cid is not numeric")
         else:
             raise ValueError
 
@@ -238,7 +198,8 @@ class Nation:
 
     def __init__(self, nid=None, nation=None):
         self.nid = nid
-        self.cities = Cities()
+        self.cities = []
+        _Nations[nid] = self
         if nation is not None:
             self.update_long(nation)
 
@@ -249,7 +210,8 @@ class Nation:
                       f"}}}}"
             nation = get_v3(request)['nations']['data'][0]
         try:
-            self.cities.update_short(nation.pop("cities"))
+            self.cities.append([int(x["id"]) for x in nation["cities"]])
+            _Cities.update_short(nation.pop("cities"))
         except KeyError:
             pass
         self.update_short(nation)
@@ -305,6 +267,7 @@ class Nation:
             "specialized_police_training": nation.pop("specialized_police_training"),
             "advanced_engineering_corps": nation.pop("adv_engineering_corps")
         }
+        return self
 
     def war_range(self):
         if self.score is int:
@@ -351,11 +314,11 @@ class Nations(collections.MutableMapping):
                         if nation.nid == nid:
                             self.mapping[nid] = nation
                         else:
-                            raise WrongNID(nation.nid, nid)
+                            raise WrongID("Nation", nation.nid, nid)
                     else:
                         self.mapping[nation["nid"]] = nation
                 else:
-                    raise NoNID
+                    raise NoID
             else:
                 raise TypeError
         elif nid:
@@ -363,8 +326,9 @@ class Nations(collections.MutableMapping):
         else:
             raise ValueError
 
-    def __getitem__(self, nid):
-        return self.mapping[nid]
+    def __getitem__(self, nids):
+        if type(nids) == int:
+            return self.mapping[nids]
 
     def __delitem__(self, nid):
         value = self[nid]
@@ -399,6 +363,15 @@ class Nations(collections.MutableMapping):
             except KeyError:
                 self.__setitem__(nation["id"], Nation(nation["id"], nation))
 
+    def update_alliance(self, alliance=None, nations=None):
+        for nation in nations:
+            try:
+                alliance.nations[nation["id"]] = self[nation["id"]].update_short(nation)
+            except KeyError:
+                _ = Nation(nation["id"], nation)
+                alliance.nations[nation["id"]] = _
+                self.__setitem__(nation["id"], _)
+
 
 class Alliance:
     """
@@ -410,25 +383,24 @@ class Alliance:
     request_data = "id, name, acronym, score, color, date, acceptmem, flag, forumlink, irclink, money, coal, oil, " \
                    "uranium, iron, bauxite, lead, gasoline, munitions, steel, aluminum, food "
 
-    __slots__ = "aaid", "nations", "name", "acronym", "score", "color", "founded", "accepting_members", "flag", \
-                "forum_link", "irc_link", "money", "coal", "oil", "uranium", "iron", "bauxite", "lead", "gasoline", \
-                "munitions", "steel", "aluminum", "food"
+    __slots__ = "aaid", "nations", "treaties", "name", "acronym", "score", "color", "founded", "accepting_members", \
+                "flag", "forum_link", "irc_link", "money", "coal", "oil", "uranium", "iron", "bauxite", "lead", \
+                "gasoline", "munitions", "steel", "aluminum", "food"
 
     def __init__(self, aaid=None):
         self.aaid = aaid
         self.nations = Nations()
+        self.treaties = Treaties()
+        _Alliances[aaid] = self
 
     def update_long(self, alliance=None):
         if alliance is None:
-            # TODO: update this request to handle treaties when that is fixed (Village fucking fix ya shod)
             request = f"query{{alliances(id: {self.aaid}) {{" \
-                      f"data {{ {Alliance.request_data}, nations{{ { Nation.request_data } }} }}" \
-                      f"}}}}"
+                      f"data {{ {Alliance.request_data}, nations{{ { Nation.request_data }, " \
+                      f"treaties{{ { Treaty.request_data } }} }} }} }} }}"
             alliance = get_v3(request)["alliances"]["data"][0]
-        self.nations.update_long(alliance.pop("nations"))
-        # TODO: These are commented out awaiting treaties to function in APIv3
-        # global _Treaties
-        # _Treaties.update_long(alliance.pop("treaties"))
+        _Nations.update_alliance(self, alliance.pop("nations"))
+        _Treaties.update_alliance(self, alliance.pop("treaties"))
 
         self.update_short(alliance)
 
@@ -459,95 +431,138 @@ class Alliance:
         self.food = alliance.pop("food")
 
 
-class Treaty:
-    def __init__(self, members: tuple, treaty_type: str, date):
-        self.members = members
-        self.treaty_type = treaty_type
-        self.date = date
-
-
-class Treaties(collections.MutableSet):
-    def __init__(self, treaties=None):
-        self.elements = set()
-        if treaties is not None:
-            for treaty in treaties:
-                if treaty not in self.elements:
-                    self.elements.add(treaty)
-
-    def __contains__(self, treaty: Treaty):
-        if treaty in self.elements:
-            return True
-        return False
-
-    def add(self, treaty: Treaty):
-        if type(treaty) is Treaty:
-            if treaty not in self.elements:
-                self.elements.add(treaty)
-                return True
-            else:
-                return False
-        else:
-            raise TypeError("Not a treaty")
-
-    def discard(self, treaty: Treaty):
-        if type(treaty) is Treaty:
-            if treaty in self.elements:
-                self.elements.discard(treaty)
-                return True
-            else:
-                return False
-        else:
-            raise TypeError("Not a treaty")
-
-    def __len__(self):
-        return self.elements.__len__()
+class Alliances(collections.MutableMapping):
+    def __init__(self, *args, **kwargs):
+        self.mapping = {}
+        self.update(kwargs)
+        for arg in args:
+            self.__setitem__(arg, Alliance(arg))
 
     def __iter__(self):
-        return self.elements.__iter__()
+        return self.mapping.__iter__()
+
+    def __len__(self):
+        return len(self.mapping.keys())
+
+    def __setitem__(self, aaid=None, alliance=None):
+        if alliance:
+            if type(alliance) is Alliance:
+                if alliance.aaid:
+                    if aaid:
+                        if alliance.aaid == aaid:
+                            self.mapping[aaid] = alliance
+                        else:
+                            raise WrongID("Alliance", alliance.aaid, aaid)
+                    else:
+                        self.mapping[alliance.aaid] = alliance
+                else:
+                    raise NoID
+            else:
+                raise TypeError
+        elif aaid:
+            self.mapping[aaid] = Alliance(aaid)
+        else:
+            raise ValueError
+
+    def __getitem__(self, aaids):
+        if type(aaids) is int:
+            return self.mapping[aaids]
+
+    def __delitem__(self, aaid):
+        value = self[aaid]
+        del self.mapping[aaid]
+        self.pop(value, None)
+
+
+class Treaty:
+    __slots__ = "tid", "alliance_1", "alliance_2", "type", "date", "turns_left", "url"
+
+    request_data = "id, date, treaty_type, treaty_url, turns_left, alliance1_id, alliance2_id"
+
+    def __init__(self, tid=None, treaty=None):
+        self.tid = tid
+        _Treaties.__setitem__(treaty=self)
+        if treaty is not None:
+            self.update_short(treaty)
+
+    def update_short(self, treaty):
+        if treaty is None:
+            request = f"query{{treaties(id: {self.tid}) {{data {{ {Treaty.request_data} }}}}}}"
+            treaty = get_v3(request)['treaties']['data'][0]
+        self.tid = treaty.pop("id")
+        self.date = treaty.pop("date")
+        self.type = treaty.pop("treaty_type")
+        self.url = treaty.pop("treaty_url")
+        self.turns_left = treaty.pop("turns_left")
+        self.alliance_1 = treaty.pop("alliance1_id")
+        self.alliance_2 = treaty.pop("alliance2_id")
+        return self
+
+
+class Treaties(collections.MutableMapping):
+    def __init__(self, treaties=None):
+        self.mapping = {}
+        if treaties is not None:
+            for treaty in treaties:
+                self.__setitem__(treaty.tid, treaty)
+
+    def __iter__(self):
+        return self.mapping.__iter__()
+
+    def __len__(self):
+        return self.mapping.__len__()
+
+    def __setitem__(self, tid=None, treaty=None):
+        if treaty:
+            if type(treaty) is Treaty:
+                if treaty.tid:
+                    if tid:
+                        if treaty.tid == tid:
+                            self.mapping[tid] = treaty
+                        else:
+                            raise WrongID("Treaty", treaty.tid, tid)
+                    else:
+                        self.mapping[treaty.tid] = treaty
+                else:
+                    raise NoID
+            else:
+                raise TypeError
+        elif tid:
+            self.mapping[tid] = Treaty(tid)
+        else:
+            raise ValueError
+
+    def __getitem__(self, tid):
+        return self.mapping[tid]
+
+    def __delitem__(self, tid):
+        value = self[tid]
+        del self.mapping[tid]
+        self.pop(value, None)
 
     def update_long(self, treaties):
-        pass
+        if treaties is None:
+            request = f"query{{treaties {{data {{ {Treaty.request_data} }}}}}}"
+            treaties = get_v3(request)['treaties']['data']
+        for treaty in treaties:
+            self[treaty["id"]].update_short(treaty)
 
-
-# Exceptions
-
-class NoNID(Exception):
-    pass
-
-
-class NoAAID(Exception):
-    pass
-
-
-class InvalidRequest(Exception):
-    pass
-
-
-class WrongNID(Exception):
-    pass
-
-
-class WrongAAID(Exception):
-    pass
-
-
-class NoCityData(Exception):
-    pass
-
-
-class NoCID(Exception):
-    pass
-
-
-class WrongCID(Exception):
-    pass
+    def update_alliance(self, alliance, treaties):
+        for treaty in treaties:
+            try:
+                alliance.treaties[treaty["id"]] = self[treaty["id"]].update_short(treaty)
+            except KeyError:
+                _ = Treaty(treaty["id"], treaty)
+                alliance.nations[treaty["id"]] = _
+                self.__setitem__(treaty["id"], _)
 
 
 # Global Variables
 
-_Key = ""
 _Treaties = Treaties()
-_Request_Res = "money, coal, oil, uranium, iron, bauxite, lead, gasoline, munitions, steel, aluminum, food"
+_Cities = Cities()
+_Nations = Nations()
+_Alliances = Alliances()
 
 # On accidental run
 
