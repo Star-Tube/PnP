@@ -1,8 +1,7 @@
 import requests
 import json
 
-from Exceptions import InvalidRequest
-from Config import _Key
+from .Exceptions import InvalidRequest
 
 
 def get(url, payload=None):
@@ -15,7 +14,7 @@ def get(url, payload=None):
     """
     response = json.loads(requests.post(url, json=payload).text)
     if "errors" in response.keys():
-        raise InvalidRequest(response, payload)
+        raise InvalidRequest(url, response, payload)
     return response
 
 
@@ -25,7 +24,8 @@ def get_v3(request):
 
     :param request: The APIv3 request desired
     """
-    return get(f"https://api.politicsandwar.com/graphql?api_key={_Key}", {"query": request})["data"]
+    from .Config import Key
+    return get(f"https://api.politicsandwar.com/graphql?api_key={Key}", {"query": request})["data"]
 
 
 def war_range(score: int):

@@ -1,13 +1,8 @@
 # for now, you have to import using this line:
-from src import Nation, _Nations
-# import PnP
-
-x = Nation(152003)
-
-print("id check:")
-print(id(x) == id(_Nations[152003]))
-
-x.nation_name = "bob"
-
-print("Attribute check:")
-print(x.nation_name == _Nations[152003].nation_name)
+from src.Politics_and_Py import *
+from config import Key
+key(Key)
+print(Key)
+malleator = Nation(54586)
+malleator.update_long()
+print(malleator.cities)

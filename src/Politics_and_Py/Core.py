@@ -4,9 +4,9 @@ import json
 import collections.abc as collections
 from typing import Union
 
-from Exceptions import WrongID, NoID
-from Utils import war_range, get_v3
-from Config import _Request_Res, _Key
+from .Exceptions import WrongID, NoID
+from .Utils import war_range, get_v3
+from .Config import _Request_Res, Key
 
 # Global Functions
 
@@ -29,17 +29,17 @@ def send_message(recipient, message: str, subject: str, sent: list = None):
     url = "https://politicsandwar.com/api/send-message/"
     sent = [6] + sent
     if type(recipient) is int:
-        payload = {"key": _Key, "to": recipient, "message": message, "subject": subject}
+        payload = {"key": Key, "to": recipient, "message": message, "subject": subject}
         response = json.loads(requests.post(url, payload).text)
         return response
     elif type(recipient) is Nation:
-        payload = {"key": _Key, "to": recipient.nid, "message": message, "subject": subject}
+        payload = {"key": Key, "to": recipient.nid, "message": message, "subject": subject}
         response = json.loads(requests.post(url, payload).text)
         return response
     elif type(recipient) is Nations:
         for nation in recipient:
             if nation.nid not in sent:
-                payload = {"key": _Key, "to": nation.nid, "message": message, "subject": subject}
+                payload = {"key": Key, "to": nation.nid, "message": message, "subject": subject}
                 response = json.loads(requests.post(url, payload).text)
                 yield response
 
@@ -61,7 +61,7 @@ class City:
     Used to store data about a city.
     """
 
-    request_data = "id, name, date, infrastructure, land, powered, oilpower, windpower, coalpower, nuclearpower, " \
+    request_data = "cid, name, date, infrastructure, land, powered, oilpower, windpower, coalpower, nuclearpower, " \
                    "coalmine, oilwell, uramine, barracks, farm, policestation, hospital, recyclingcenter, subway, " \
                    "supermarket, bank, mall, stadium, leadmine, ironmine, bauxitemine, gasrefinery, aluminumrefinery, "\
                    "steelmill, munitionsfactory, factory, airforcebase, drydock, date"
