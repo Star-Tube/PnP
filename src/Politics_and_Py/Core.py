@@ -61,7 +61,7 @@ class City:
     Used to store data about a city.
     """
 
-    request_data = "cid, name, date, infrastructure, land, powered, oilpower, windpower, coalpower, nuclearpower, " \
+    request_data = "id, name, date, infrastructure, land, powered, oilpower, windpower, coalpower, nuclearpower, " \
                    "coalmine, oilwell, uramine, barracks, farm, policestation, hospital, recyclingcenter, subway, " \
                    "supermarket, bank, mall, stadium, leadmine, ironmine, bauxitemine, gasrefinery, aluminumrefinery, "\
                    "steelmill, munitionsfactory, factory, airforcebase, drydock, date"
@@ -73,13 +73,20 @@ class City:
         "munitions_factory", "factory", "airforcebase", "drydock", "pollution", "disease", "population", "commerce", \
         "crime", "age", "daily_gross_income", "revenue"
 
-    def __init__(self, cid):
-        self.cid = cid
+    def __init__(self, cid=None, data=None):
+        if cid:
+            self.cid = cid
+        elif data:
+            self.cid = data["id"]
+        if data:
+            self.update_short(data)
+
 
     def update_short(self, city=None):
         if city is None:
             request = f"cities(id:{self.cid}){{data{{ { City.request_data } }}}}"
             city = get_v3(request)["cities"]["data"][0]
+
         if self.cid == city.pop("id"):
             self.name = city.pop("name")
             self.founded = city.pop("date")
@@ -128,6 +135,12 @@ class Cities(collections.MutableMapping):
         for arg in args:
             self.__setitem__(arg, City(arg))
 
+    def __str__(self):
+        return self.mapping.__str__()
+
+    def __repr__(self):
+        return self.mapping.__repr__()
+
     def __iter__(self):
         return self.mapping.__iter__()
 
@@ -142,7 +155,7 @@ class Cities(collections.MutableMapping):
                         if city.cid == cid:
                             self.mapping[cid] = city
                         else:
-                            raise WrongID("City", city.id, cid)
+                            raise WrongID("City", city.cid, cid)
                     else:
                         self.mapping[city["nid"]] = city
                 else:
@@ -179,7 +192,7 @@ class Cities(collections.MutableMapping):
             try:
                 self[city["id"]].update_short(city)
             except KeyError:
-                self.__setitem__(city["id"], City(city))
+                self.__setitem__(city["id"], City(data=city))
 
 
 class Nation:
@@ -204,7 +217,7 @@ class Nation:
 
     def __init__(self, nid=None, nation=None):
         self.nid = nid
-        self.cities = []
+        self.cities = self.Cities()
         _Nations[nid] = self
         if nation is not None:
             self.update_long(nation)
@@ -212,11 +225,11 @@ class Nation:
     def update_long(self, nation=None):
         if nation is None:
             request = f"{{nations(id: {self.nid} first:100){{" \
-                      f"data{{ {Nation.request_data} cities{City.request_data} }}" \
+                      f"data{{ {Nation.request_data} cities{{{City.request_data}}} }}" \
                       f"}}}}"
             nation = get_v3(request)['nations']['data'][0]
         try:
-            self.cities.append([int(x["id"]) for x in nation["cities"]])
+            self.cities = [int(x["id"]) for x in nation["cities"]]
             _Cities.update_short(nation.pop("cities"))
         except KeyError:
             pass
@@ -280,6 +293,19 @@ class Nation:
             return war_range(self.score)
         else:
             raise TypeError(f"{self.__name__}.score is not an int")
+
+    class Cities(list):
+        def __init__(self):
+            super().__init__()
+
+        def __setitem__(self, index, item):
+            if item is int:
+                super().__setitem__(index, item)
+            if item is City:
+                super().__setitem__(index, item.cid)
+
+        def __str__(self):
+            return [_Cities[cid] for cid in self]
 
 
 class Nations(collections.MutableMapping):
