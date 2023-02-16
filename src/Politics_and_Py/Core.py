@@ -82,6 +82,10 @@ class City:
             self.update_short(data)
 
 
+    def __str__(self):
+        return self.name, self.cid
+
+
     def update_short(self, city=None):
         if city is None:
             request = f"cities(id:{self.cid}){{data{{ { City.request_data } }}}}"
@@ -218,7 +222,7 @@ class Nation:
     def __init__(self, nid=None, nation=None):
         self.nid = nid
         self.cities = self.Cities()
-        _Nations[nid] = self
+        Nations_[nid] = self
         if nation is not None:
             self.update_long(nation)
 
@@ -229,10 +233,10 @@ class Nation:
                       f"}}}}"
             nation = get_v3(request)['nations']['data'][0]
         try:
-            self.cities = [int(x["id"]) for x in nation["cities"]]
-            _Cities.update_short(nation.pop("cities"))
-        except KeyError:
-            pass
+            self.cities = self.Cities([int(x["id"]) for x in nation["cities"]])
+            Cities_.update_short(nation.pop("cities"))
+        except KeyError as error:
+            print(error)
         self.update_short(nation)
 
     def update_short(self, nation=None):
@@ -295,8 +299,8 @@ class Nation:
             raise TypeError(f"{self.__name__}.score is not an int")
 
     class Cities(list):
-        def __init__(self):
-            super().__init__()
+        def __init__(self, *args):
+            super().__init__(args)
 
         def __setitem__(self, index, item):
             if item is int:
@@ -304,8 +308,11 @@ class Nation:
             if item is City:
                 super().__setitem__(index, item.cid)
 
-        def __str__(self):
-            return [_Cities[cid] for cid in self]
+        def __repr__(self):
+            to_return = []
+            for cid in self[0]:
+                to_return.append((cid, Cities_[cid]))
+            return str(to_return)
 
 
 class Nations(collections.MutableMapping):
@@ -423,7 +430,7 @@ class Alliance:
         self.aaid = aaid
         self.nations = Nations()
         self.treaties = Treaties()
-        _Alliances[aaid] = self
+        Alliances_[aaid] = self
 
     def update_long(self, alliance=None):
         if alliance is None:
@@ -431,7 +438,7 @@ class Alliance:
                       f"data {{ {Alliance.request_data}, nations{{ { Nation.request_data }, " \
                       f"treaties{{ { Treaty.request_data } }} }} }} }} }}"
             alliance = get_v3(request)["alliances"]["data"][0]
-        _Nations.update_alliance(self, alliance.pop("nations"))
+        Nations_.update_alliance(self, alliance.pop("nations"))
         _Treaties.update_alliance(self, alliance.pop("treaties"))
 
         self.update_short(alliance)
@@ -591,12 +598,11 @@ class Treaties(collections.MutableMapping):
 
 # Global Variables
 
-_Treaties = Treaties()
-_Cities = Cities()
-_Nations = Nations()
-_Alliances = Alliances()
+Treaties = Treaties()
+Cities_ = Cities()
+Nations_ = Nations()
+Alliances_ = Alliances()
 
 # On accidental run
-
 if __name__ == "__main__":
     print("I am a package. Feel free to check my docs to see how to use me properly.")
