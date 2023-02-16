@@ -1,5 +1,5 @@
 # for now, you have to import using this line:
-from src.Core import Nation, _Nations
+from src import Nation, _Nations
 # import PnP
 
 x = Nation(152003)

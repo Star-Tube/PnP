@@ -1,5 +1,5 @@
 # for now you have to import using this line:
-from src import \
+from src.Politics_and_Py import \
     Core as PnP
 
 # import PnP

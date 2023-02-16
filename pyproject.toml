@@ -3,12 +3,12 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "Politics-and-Py"
-version = "0.0.13"
+name = "Politics_and_Py"
+version = "0.0.18"
 authors = [
   { name="Star_Tube", discord="Star_Tube#1336" },
 ]
-description = "A package for mannaging Politics and War data"
+description = "A package for managing Politics and War data"
 readme = "README.md"
 requires-python = ">=3.10"
 classifiers = [
