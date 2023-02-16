@@ -58,7 +58,7 @@ class City:
     """
     City(cid=123)
 
-    Used to store, retrieve update and calculate information about a city.
+    Used to store data about a city.
     """
 
     request_data = "id, name, date, infrastructure, land, powered, oilpower, windpower, coalpower, nuclearpower, " \
@@ -183,6 +183,12 @@ class Cities(collections.MutableMapping):
 
 
 class Nation:
+    """
+    Nation(nid=12346)
+
+    Used to store and update a nation's data.
+    """
+
     __slots__ = "nid", "nation_name", "leader_name", "continent", "war_policy", "dom_policy", "colour", "score", \
                 "population", "flag", "vacation", "beige", "projects", "alliance_id", "alliance_position", \
                 "espionage", "login", "mil", "soldiers", "tanks", "planes", "ships", "missiles", "nukes", "treasures", \

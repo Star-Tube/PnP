@@ -1,5 +1,5 @@
 # for now, you have to import using this line:
-from Core import Treaty, _Treaties
+from src.Core import Treaty, _Treaties
 # import PnP
 
 x = Treaty(1)

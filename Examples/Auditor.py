@@ -1,5 +1,7 @@
 # for now you have to import using this line:
-import Core as PnP
+from src import \
+    Core as PnP
+
 # import PnP
 
 # Set Key
