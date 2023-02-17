@@ -1,16 +1,20 @@
 # Imports
-import requests
-import json
 import collections.abc as collections
 from typing import Union
 
 from .Exceptions import WrongID, NoID
-from .Utils import war_range, get_v3
-from .Config import _Request_Res, Key
+from .Utils import get_v3
+from .Config import _Request_Res
+
+from .City import City
+from .Nation import Nation
+from .Treaty import Treaty
+from .Alliance import Alliance
 
 # Global Functions
 
-
+# todo: Extrapolate this into a util function and a Nation.send_message() function and a Nations.send_message() function. Maybe also Alliance.send_message() and Alliances.send_message() functions.
+'''
 def send_message(recipient, message: str, subject: str, sent: list = None):
     """
     Takes in recipient, message and subject and sends the message. Returns any response to the action.
@@ -42,7 +46,7 @@ def send_message(recipient, message: str, subject: str, sent: list = None):
                 payload = {"key": Key, "to": nation.nid, "message": message, "subject": subject}
                 response = json.loads(requests.post(url, payload).text)
                 yield response
-
+'''
 
 def get_bankrecs(nation):
     if type(nation) is Nation:
@@ -51,82 +55,8 @@ def get_bankrecs(nation):
                   f"    data{{id, date, sid, stype, rid, rtype, pid, note, {_Request_Res}, tax_id}}}}"
                   f"}}")['bankrecs']['data']
 
+
 # Classes
-
-
-class City:
-    """
-    City(cid=123)
-
-    Used to store data about a city.
-    """
-
-    request_data = "id, name, date, infrastructure, land, powered, oilpower, windpower, coalpower, nuclearpower, " \
-                   "coalmine, oilwell, uramine, barracks, farm, policestation, hospital, recyclingcenter, subway, " \
-                   "supermarket, bank, mall, stadium, leadmine, ironmine, bauxitemine, gasrefinery, aluminumrefinery, "\
-                   "steelmill, munitionsfactory, factory, airforcebase, drydock, date"
-
-    __slots__ = "cid", "name", "infra", "land", "nid", "powered", "founded", "imps", "coal_power_plant", \
-        "oil_power_plant", "wind_power_plant", "nuclear_power_plant", "coal_mine", "oil_well", "uranium_mine", "farm", \
-        "police_station", "barracks", "hospital", "recycling_center", "subway", "supermarket", "bank", "mall", \
-        "stadium", "lead_mine", "iron_mine", "bauxite_mine", "gas_refinery", "aluminium_refinery", "steel_mill", \
-        "munitions_factory", "factory", "airforcebase", "drydock", "pollution", "disease", "population", "commerce", \
-        "crime", "age", "daily_gross_income", "revenue"
-
-    def __init__(self, cid=None, data=None):
-        if cid:
-            self.cid = cid
-        elif data:
-            self.cid = data["id"]
-        if data:
-            self.update_short(data)
-
-    def __str__(self):
-        return self.name, self.cid
-
-    def __repr__(self):
-        return f"City({self.cid})"
-
-    def update_short(self, city=None):
-        if city is None:
-            request = f"cities(id:{self.cid}){{data{{ { City.request_data } }}}}"
-            city = get_v3(request)["cities"]["data"][0]
-
-        if self.cid == city.pop("id"):
-            self.name = city.pop("name")
-            self.founded = city.pop("date")
-            self.infra = city.pop("infrastructure")
-            self.land = city.pop("land")
-            self.powered = city.pop("powered")
-            self.oil_power_plant = city.pop("oilpower")
-            self.wind_power_plant = city.pop("windpower")
-            self.coal_power_plant = city.pop("coalpower")
-            self.nuclear_power_plant = city.pop("nuclearpower")
-            self.coal_mine = city.pop("coalmine")
-            self.oil_well = city.pop("oilwell")
-            self.uranium_mine = city.pop("uramine")
-            self.barracks = city.pop("barracks")
-            self.farm = city.pop("farm")
-            self.police_station = city.pop("policestation")
-            self.hospital = city.pop("hospital")
-            self.recycling_center = city.pop("recyclingcenter")
-            self.subway = city.pop("subway")
-            self.supermarket = city.pop("supermarket")
-            self.bank = city.pop("bank")
-            self.mall = city.pop("mall")
-            self.stadium = city.pop("stadium")
-            self.lead_mine = city.pop("leadmine")
-            self.iron_mine = city.pop("ironmine")
-            self.bauxite_mine = city.pop("bauxitemine")
-            self.gas_refinery = city.pop("gasrefinery")
-            self.aluminium_refinery = city.pop("aluminumrefinery")
-            self.steel_mill = city.pop("steelmill")
-            self.munitions_factory = city.pop("munitionsfactory")
-            self.factory = city.pop("factory")
-            self.airforcebase = city.pop("airforcebase")
-            self.drydock = city.pop("drydock")
-
-
 class BaseCities(collections.MutableMapping):
     """
     Cities([123, 456])
@@ -198,152 +128,6 @@ class BaseCities(collections.MutableMapping):
                 self[city["id"]].update_short(city)
             except KeyError:
                 self.__setitem__(city["id"], City(data=city))
-
-
-class Cities(collections.MutableSet):
-    def __init__(self, *args):
-        super(Cities, self).__init__()
-        self.set = ()
-        for arg in args:
-            self.add(arg)
-
-    @staticmethod
-    def update_short(cities=None):
-        Cities_.update_short(cities=cities)
-
-    def __str__(self):
-        return f"{self.set}"
-
-    def __repr__(self):
-        return str(self.set)
-
-    def __contains__(self, item):
-        return super(Cities, self).__contains__(item)
-
-    def __iter__(self):
-        return super(Cities, self).__iter__()
-
-    def __len__(self):
-        return self.set.__len__()
-
-    def items(self):
-        return [(cid, Cities_[int(cid)]) for cid in self.set]
-
-    def add(self, value) -> None:
-        self.set = self.set + (value,)
-        Cities_.__setitem__(cid=value)
-
-    def discard(self, value) -> None:
-        super(Cities, self).discard(value)
-
-
-class Nation:
-    """
-    Nation(nid=12346)
-
-    Used to store and update a nation's data.
-    """
-
-    __slots__ = "nid", "nation_name", "leader_name", "continent", "war_policy", "dom_policy", "colour", "score", \
-                "population", "flag", "vacation", "beige", "projects", "alliance_id", "alliance_position", \
-                "espionage", "login", "mil", "soldiers", "tanks", "planes", "ships", "missiles", "nukes", "treasures", \
-                "cities"
-
-    request_data = "id, alliance_id, alliance_position, nation_name, leader_name, continent, warpolicy, dompolicy, " \
-                   "color, score, population, flag, vmode, beigeturns, espionage_available, last_active, soldiers, " \
-                   "tanks, aircraft, ships, missiles, nukes, treasures {name}, ironw, bauxitew, armss, egr, " \
-                   "massirr, itc, mlp, nrf, irond, vds, cia, cfce, propb, uap, city_planning, adv_city_planning, " \
-                   "space_program, spy_satellite, moon_landing, pirate_economy, recycling_initiative, " \
-                   "telecom_satellite, green_tech, arable_land_agency, clinical_research_center, " \
-                   "specialized_police_training, adv_engineering_corps, "
-
-    def __init__(self, nid=None, nation=None):
-        self.nid = int(nid)
-        self.cities = Cities()
-        Nations_[nid] = self
-        if nation is not None:
-            self.update_long(nation)
-
-    def __str__(self):
-        try:
-            return f"{self.nation_name}"
-        except AttributeError:
-            return self.__repr__()
-
-    def __repr__(self):
-        return f"Nation({self.nid})"
-
-    def update_long(self, nation=None):
-        if nation is None:
-            request = f"{{nations(id: {self.nid} first:100){{" \
-                      f"data{{ {Nation.request_data} cities{{{City.request_data}}} }}" \
-                      f"}}}}"
-            nation = get_v3(request)['nations']['data'][0]
-        try:
-            self.cities = Cities(*tuple(int(x["id"]) for x in nation["cities"]))
-            self.cities.update_short(cities=nation.pop("cities"))
-        except KeyError as error:
-            print(error)
-        self.update_short(nation)
-
-    def update_short(self, nation=None):
-        if nation is None:
-            request = f"""{{nations(id: {self.nid} first:1){{data{{ {Nation.request_data} }}}}}}"""
-            nation = get_v3(request)['nations']['data'][0]
-        self.nation_name = nation.pop("nation_name")
-        self.leader_name = nation.pop("leader_name")
-        self.continent = nation.pop("continent")
-        self.war_policy = nation.pop("warpolicy")
-        self.dom_policy = nation.pop("dompolicy")
-        self.colour = nation.pop("color")
-        self.alliance_id = nation.pop("alliance_id")
-        self.alliance_position = nation.pop("alliance_position")
-        self.score = nation.pop("score")
-        self.population = nation.pop("population")
-        self.flag = nation.pop("flag")
-        self.vacation = nation.pop("vmode")
-        self.beige = nation.pop("beigeturns")
-        self.espionage = nation.pop("espionage_available")
-        self.login = nation.pop("last_active")  # need to cast to datetime
-        self.mil = {
-            "soldiers": nation["soldiers"], "tanks": nation["tanks"], "aircraft": nation["aircraft"],
-            "ships": nation["ships"],
-            "missiles": nation["missiles"], "nukes": nation["nukes"]
-        }
-        self.soldiers = nation.pop("soldiers")
-        self.tanks = nation.pop("tanks")
-        self.planes = nation.pop("aircraft")
-        self.ships = nation.pop("ships")
-        self.missiles = nation.pop("missiles")
-        self.nukes = nation.pop("nukes")
-        self.treasures = nation.pop("treasures")
-        # Not sure if projects here should be a dictionary or if every seperate project should be it's own boolean slot
-        self.projects = {
-            "iron_works": nation.pop("ironw"), "bauxite_works": nation.pop("bauxitew"),
-            "arms_stockpile": nation.pop("armss"),
-            "emergency_gasoline_reserve": nation.pop("egr"), "mass_irrigation": nation.pop("massirr"),
-            "international_trade_centre": nation.pop("itc"), "missile_launch_pad": nation.pop("mlp"),
-            "nuclear_research_facility": nation.pop("nrf"), "iron_defence": nation.pop("irond"),
-            "vital_defence_system": nation.pop("vds"), "inteligence_agency": nation.pop("cia"),
-            "center_for_civil_engineering": nation.pop("cfce"), "propoganda_bureau": nation.pop("propb"),
-            "urban_planning": nation.pop("uap"), "city_planning": nation.pop("city_planning"),
-            "advanced_city_planning": nation.pop("adv_city_planning"), "space_program": nation.pop("space_program"),
-            "spy_satellite": nation.pop("spy_satellite"), "moon_landing": nation.pop("moon_landing"),
-            "pirate_economy": nation.pop("pirate_economy"), "recycling_initiative": nation.pop("recycling_initiative"),
-            "telecomuniactions_satellite": nation.pop("telecom_satellite"),
-            "green_technology": nation.pop("green_tech"),
-            "arable_land_agency": nation.pop("arable_land_agency"),
-            "clinical_research_center": nation.pop("clinical_research_center"),
-            "specialized_police_training": nation.pop("specialized_police_training"),
-            "advanced_engineering_corps": nation.pop("adv_engineering_corps")
-        }
-        return self
-
-    def war_range(self):
-        if self.score is int:
-            return war_range(self.score)
-        else:
-            raise TypeError(f"{self.__name__}.score is not an int")
 
 
 class BaseNations(collections.MutableMapping):
@@ -428,7 +212,7 @@ class BaseNations(collections.MutableMapping):
                           f"}}}}}}"
                 nations = get_v3(request)["nations"]["data"]
             else:
-                nations = Nations.paginate(requirements, f"{Nation.request_data} cities{{ {City.request_data} }}")
+                nations = self.paginate(requirements, f"{Nation.request_data} cities{{ {City.request_data} }}")
         for nation in nations:
             try:
                 self[int(nation["id"])].update_long(nation)
@@ -441,7 +225,7 @@ class BaseNations(collections.MutableMapping):
                 request = f"{{nations(id: {self.keys()} first:100){{data{{ {Nation.request_data}}}}}"
                 nations = get_v3(request)["nations"]["data"][0]
             else:
-                nations = Nations.paginate(requirements, f"{Nation.request_data}")
+                nations = self.paginate(requirements, f"{Nation.request_data}")
         for nation in nations:
             try:
                 self[nation["id"]].update_short(nation)
@@ -458,116 +242,13 @@ class BaseNations(collections.MutableMapping):
                 self.__setitem__(nation["id"], _)
 
 
-class Nations(collections.MutableSet):
-    def __init__(self, *args):
-        super(Nations, self).__init__()
-        self.set = ()
-        for arg in args:
-            self.add(arg)
-
-    @staticmethod
-    def update_long():
-        Nations_.update_long()
-
-    def __str__(self):
-        return str(self.set)
-
-    def __contains__(self, item):
-        return super(Nations, self).__contains__(item)
-
-    def __iter__(self):
-        return super(Nations, self).__iter__()
-
-    def __len__(self):
-        return self.set.__len__()
-
-    def add(self, value) -> None:
-        self.set = self.set + (value,)
-        Nations_.__setitem__(nid=value)
-
-    def discard(self, value) -> None:
-        self.set.__delattr__(value)
-
-    def __getattr__(self, item):
-        return Nations_[item]
-
-    def items(self):
-        return [(nid, Nations_[nid]) for nid in self.set]
-
-
-class Alliance:
-    """
-    Alliance(aaid=1234)
-
-    Used to store, retrieve update and calculate information about a nation.
-    """
-
-    request_data = "id, name, acronym, score, color, date, acceptmem, flag, forumlink, irclink, money, coal, oil, " \
-                   "uranium, iron, bauxite, lead, gasoline, munitions, steel, aluminum, food "
-
-    __slots__ = "aaid", "nations", "treaties", "alliance_name", "acronym", "score", "color", "founded", "accepting_members", \
-                "flag", "forum_link", "irc_link", "money", "coal", "oil", "uranium", "iron", "bauxite", "lead", \
-                "gasoline", "munitions", "steel", "aluminum", "food"
-
-    def __init__(self, aaid=None):
-        self.aaid = aaid
-        self.nations = Nations()
-        self.treaties = Treaties()
-        Alliances_[aaid] = self
-
-    def __str__(self):
-        try:
-            return self.alliance_name
-        except AttributeError:
-            return self.__repr__()
-
-    def __repr__(self):
-        return f"Alliance({self.aaid})"
-
-    def update_long(self, alliance=None):
-        if alliance is None:
-            request = f"query{{alliances(id: {self.aaid}) {{" \
-                      f"data {{ {Alliance.request_data}, nations{{ { Nation.request_data } }}, " \
-                      f"treaties{{ { Treaty.request_data } }} }} }} }}"
-            alliance = get_v3(request)["alliances"]["data"][0]
-        self.nations = Nations(*[nation["id"] for nation in alliance["nations"]])
-        self.treaties = Treaties(*[treaty["id"] for treaty in alliance["treaties"]])
-
-        self.update_short(alliance)
-
-    def update_short(self, alliance=None):
-        if alliance is None:
-            request = f"query{{alliances(id: {self.aaid}) {{data {{ {Alliance.request_data} }}}}}}"
-            alliance = get_v3(request)['alliances']['data'][0]
-        self.alliance_name = alliance.pop("name")
-        self.acronym = alliance.pop("acronym")
-        self.score = alliance.pop("score")
-        self.color = alliance.pop("color")
-        self.founded = alliance.pop("date")
-        self.accepting_members = alliance.pop("acceptmem")
-        self.flag = alliance.pop("flag")
-        self.forum_link = alliance.pop("forumlink")
-        self.irc_link = alliance.pop("irclink")
-        self.money = alliance.pop("money")
-        self.coal = alliance.pop("coal")
-        self.oil = alliance.pop("oil")
-        self.uranium = alliance.pop("uranium")
-        self.iron = alliance.pop("iron")
-        self.bauxite = alliance.pop("bauxite")
-        self.lead = alliance.pop("lead")
-        self.gasoline = alliance.pop("gasoline")
-        self.munitions = alliance.pop("munitions")
-        self.steel = alliance.pop("steel")
-        self.aluminum = alliance.pop("aluminum")
-        self.food = alliance.pop("food")
-
-
 class BaseAlliances(collections.MutableMapping):
     def __init__(self, *args, **kwargs):
         self.mapping = {}
         self.update(kwargs)
         for arg in args:
-            self.__setitem__(arg, Alliance(arg))
+            self.__setitem__(
+                arg)
 
     def __iter__(self):
         return self.mapping.__iter__()
@@ -575,25 +256,8 @@ class BaseAlliances(collections.MutableMapping):
     def __len__(self):
         return len(self.mapping.keys())
 
-    def __setitem__(self, aaid=None, alliance=None):
-        if alliance:
-            if type(alliance) is Alliance:
-                if alliance.aaid:
-                    if aaid:
-                        if alliance.aaid == aaid:
-                            self.mapping[aaid] = alliance
-                        else:
-                            raise WrongID("Alliance", alliance.aaid, aaid)
-                    else:
-                        self.mapping[alliance.aaid] = alliance
-                else:
-                    raise NoID
-            else:
-                raise TypeError
-        elif aaid:
-            self.mapping[aaid] = Alliance(aaid)
-        else:
-            raise ValueError
+    def __setitem__(self, aaid):
+        self.mapping[aaid] = Alliance(aaid)
 
     def __getitem__(self, aaids):
         if type(aaids) is int:
@@ -603,53 +267,6 @@ class BaseAlliances(collections.MutableMapping):
         value = self[aaid]
         del self.mapping[aaid]
         self.pop(value, None)
-
-
-class Alliances(collections.MutableSet):
-    def __init__(self, *args):
-        super(self).__init__()
-        for arg in args:
-            self.add(arg)
-
-    def __contains__(self, item):
-        return super(Alliances, self).__contains__(item)
-
-    def __iter__(self):
-        return super(Alliances, self).__iter__()
-
-    def __len__(self):
-        return super(Alliances, self).__len__()
-
-    def add(self, value) -> None:
-        super(Alliances, self).add(value)
-
-    def discard(self, value) -> None:
-        super(Alliances, self).discard(value)
-
-
-class Treaty:
-    __slots__ = "tid", "alliance_1", "alliance_2", "type", "date", "turns_left", "url"
-
-    request_data = "id, date, treaty_type, treaty_url, turns_left, alliance1_id, alliance2_id"
-
-    def __init__(self, tid=None, treaty=None):
-        self.tid = tid
-        Treaties_.__setitem__(treaty=self)
-        if treaty is not None:
-            self.update_short(treaty)
-
-    def update_short(self, treaty):
-        if treaty is None:
-            request = f"query{{treaties(id: {self.tid}) {{data {{ {Treaty.request_data} }}}}}}"
-            treaty = get_v3(request)['treaties']['data'][0]
-        self.tid = treaty.pop("id")
-        self.date = treaty.pop("date")
-        self.type = treaty.pop("treaty_type")
-        self.url = treaty.pop("treaty_url")
-        self.turns_left = treaty.pop("turns_left")
-        self.alliance_1 = treaty.pop("alliance1_id")
-        self.alliance_2 = treaty.pop("alliance2_id")
-        return self
 
 
 class BaseTreaties(collections.MutableMapping):
@@ -711,44 +328,6 @@ class BaseTreaties(collections.MutableMapping):
                 _ = Treaty(treaty["id"], treaty)
                 alliance.nations[treaty["id"]] = _
                 self.__setitem__(treaty["id"], _)
-
-
-class Treaties(collections.MutableSet):
-    def __init__(self, *args):
-        super(Treaties, self).__init__()
-        self.set = ()
-        for arg in args:
-            self.add(arg)
-
-    @staticmethod
-    def update_long():
-        Treaties_.update_long()
-
-    def __str__(self):
-        return str(self.set)
-
-    def __contains__(self, item):
-        return super(Treaties, self).__contains__(item)
-
-    def __iter__(self):
-        return super(Treaties, self).__iter__()
-
-    def __len__(self):
-        return self.set.__len__()
-
-    def add(self, value) -> None:
-        self.set = self.set + (value,)
-        Treaties_.__setitem__(tid=value)
-
-    def discard(self, value) -> None:
-        self.set.__delattr__(value)
-
-    def __getattr__(self, item):
-        return Treaties_[item]
-
-    def items(self):
-        return [(tid, Treaties_[tid]) for tid in self.set]
-
 
 
 # Global sources of truth
