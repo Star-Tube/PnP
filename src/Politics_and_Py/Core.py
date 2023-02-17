@@ -81,10 +81,11 @@ class City:
         if data:
             self.update_short(data)
 
-
     def __str__(self):
         return self.name, self.cid
 
+    def __repr__(self):
+        return f"City({self.cid})"
 
     def update_short(self, city=None):
         if city is None:
@@ -126,7 +127,7 @@ class City:
             self.drydock = city.pop("drydock")
 
 
-class Cities(collections.MutableMapping):
+class BaseCities(collections.MutableMapping):
     """
     Cities([123, 456])
 
@@ -188,7 +189,7 @@ class Cities(collections.MutableMapping):
         del self.mapping[cid]
         self.pop(value, None)
 
-    def update_short(self, cities):
+    def update_short(self, cities=None):
         if cities is None:
             request = f"cities(id:{self.keys()}){{data{{ {City.request_data} }}}}"
             cities = get_v3(request)["cities"]["data"]
@@ -197,6 +198,41 @@ class Cities(collections.MutableMapping):
                 self[city["id"]].update_short(city)
             except KeyError:
                 self.__setitem__(city["id"], City(data=city))
+
+
+class Cities(collections.MutableSet):
+    def __init__(self, *args):
+        super(Cities, self).__init__()
+        self.set = ()
+        for arg in args:
+            self.add(arg)
+
+    @staticmethod
+    def update_short():
+        Cities_.update_short()
+
+    def __str__(self):
+        return f"{self.set}"
+
+    def __repr__(self):
+        return str(self.set)
+
+    def __contains__(self, item):
+        return super(Cities, self).__contains__(item)
+
+    def __iter__(self):
+        return super(Cities, self).__iter__()
+
+    def __len__(self):
+        return self.set.__len__()
+
+    def add(self, value) -> None:
+        self.set = self.set + (value,)
+        Cities_.__setitem__(cid=value)
+
+    def discard(self, value) -> None:
+        super(Cities, self).discard(value)
+
 
 
 class Nation:
@@ -220,11 +256,20 @@ class Nation:
                    "specialized_police_training, adv_engineering_corps, "
 
     def __init__(self, nid=None, nation=None):
-        self.nid = nid
-        self.cities = self.Cities()
+        self.nid = int(nid)
+        self.cities = Cities()
         Nations_[nid] = self
         if nation is not None:
             self.update_long(nation)
+
+    def __str__(self):
+        try:
+            return f"{self.nation_name}"
+        except AttributeError:
+            return self.__repr__()
+
+    def __repr__(self):
+        return str(self.nid)
 
     def update_long(self, nation=None):
         if nation is None:
@@ -233,8 +278,8 @@ class Nation:
                       f"}}}}"
             nation = get_v3(request)['nations']['data'][0]
         try:
-            self.cities = self.Cities([int(x["id"]) for x in nation["cities"]])
-            Cities_.update_short(nation.pop("cities"))
+            self.cities = Cities([int(x["id"]) for x in nation["cities"]])
+            self.cities.update_long(nation.pop("cities"))
         except KeyError as error:
             print(error)
         self.update_short(nation)
@@ -298,24 +343,7 @@ class Nation:
         else:
             raise TypeError(f"{self.__name__}.score is not an int")
 
-    class Cities(list):
-        def __init__(self, *args):
-            super().__init__(args)
-
-        def __setitem__(self, index, item):
-            if item is int:
-                super().__setitem__(index, item)
-            if item is City:
-                super().__setitem__(index, item.cid)
-
-        def __repr__(self):
-            to_return = []
-            for cid in self[0]:
-                to_return.append((cid, Cities_[cid]))
-            return str(to_return)
-
-
-class Nations(collections.MutableMapping):
+class BaseNations(collections.MutableMapping):
     """
     Nations([123456, 654321])
 
@@ -342,6 +370,16 @@ class Nations(collections.MutableMapping):
     def __iter__(self):
         return self.mapping.__iter__()
 
+    def __str__(self):
+        try:
+            return str({nid:nation.nation_name for nid,nation in self.mapping.items()})
+        except AttributeError:
+            # todo: log that this object should be updated
+            return f"The Nations: {str(list(self.mapping.keys())).strip('[]')}"
+
+    def __repr__(self):
+        return str(self.mapping)
+
     def __len__(self) -> int:
         return len(self.mapping.keys())
 
@@ -350,8 +388,8 @@ class Nations(collections.MutableMapping):
             if type(nation) is Nation:
                 if nation.nid:
                     if nid:
-                        if nation.nid == nid:
-                            self.mapping[nid] = nation
+                        if nation.nid == int(nid):
+                            self.mapping[int(nid)] = nation
                         else:
                             raise WrongID("Nation", nation.nid, nid)
                     else:
@@ -391,7 +429,6 @@ class Nations(collections.MutableMapping):
         for nation in nations:
             try:
                 self[int(nation["id"])].update_long(nation)
-                print(self.mapping)
             except KeyError:
                 self.__setitem__(nation["id"], Nation(nation["id"], nation))
 
@@ -418,6 +455,43 @@ class Nations(collections.MutableMapping):
                 self.__setitem__(nation["id"], _)
 
 
+class Nations(collections.MutableSet):
+    def __init__(self, *args):
+        super(Nations, self).__init__()
+        self.set = ()
+        for arg in args:
+            self.add(arg)
+
+    @staticmethod
+    def update_long():
+        Nations_.update_long()
+
+    def __str__(self):
+        return str(self.set)
+
+    def __contains__(self, item):
+        return super(Nations, self).__contains__(item)
+
+    def __iter__(self):
+        return super(Nations, self).__iter__()
+
+    def __len__(self):
+        return super(Nations, self).__len__()
+
+    def add(self, value) -> None:
+        self.set = self.set + (value,)
+        Nations_.__setitem__(nid=value)
+
+    def discard(self, value) -> None:
+        self.set.__delattr__(value)
+
+    def __getattr__(self, item):
+        return Nations_[item]
+
+    def items(self):
+        return [(nid, Nations_[nid]) for nid in self.set]
+
+
 class Alliance:
     """
     Alliance(aaid=1234)
@@ -428,24 +502,33 @@ class Alliance:
     request_data = "id, name, acronym, score, color, date, acceptmem, flag, forumlink, irclink, money, coal, oil, " \
                    "uranium, iron, bauxite, lead, gasoline, munitions, steel, aluminum, food "
 
-    __slots__ = "aaid", "nations", "treaties", "name", "acronym", "score", "color", "founded", "accepting_members", \
+    __slots__ = "aaid", "nations", "treaties", "alliance_name", "acronym", "score", "color", "founded", "accepting_members", \
                 "flag", "forum_link", "irc_link", "money", "coal", "oil", "uranium", "iron", "bauxite", "lead", \
                 "gasoline", "munitions", "steel", "aluminum", "food"
 
     def __init__(self, aaid=None):
         self.aaid = aaid
-        self.nations = Nations()
-        self.treaties = Treaties()
+        self.nations = []
+        self.treaties = []
         Alliances_[aaid] = self
+
+    def __str__(self):
+        try:
+            return self.alliance_name
+        except AttributeError:
+            return self.__repr__()
+
+    def __repr__(self):
+        return f"Alliance({self.aaid})"
 
     def update_long(self, alliance=None):
         if alliance is None:
             request = f"query{{alliances(id: {self.aaid}) {{" \
-                      f"data {{ {Alliance.request_data}, nations{{ { Nation.request_data }, " \
-                      f"treaties{{ { Treaty.request_data } }} }} }} }} }}"
+                      f"data {{ {Alliance.request_data}, nations{{ { Nation.request_data } }}, " \
+                      f"treaties{{ { Treaty.request_data } }} }} }} }}"
             alliance = get_v3(request)["alliances"]["data"][0]
-        Nations_.update_alliance(self, alliance.pop("nations"))
-        _Treaties.update_alliance(self, alliance.pop("treaties"))
+        self.nations = [nation["id"] for nation in alliance["nations"]]
+        self.treaties = [treaty["id"] for treaty in alliance["treaties"]]
 
         self.update_short(alliance)
 
@@ -453,7 +536,7 @@ class Alliance:
         if alliance is None:
             request = f"query{{alliances(id: {self.aaid}) {{data {{ {Alliance.request_data} }}}}}}"
             alliance = get_v3(request)['alliances']['data'][0]
-        self.name = alliance.pop("name")
+        self.alliance_name = alliance.pop("name")
         self.acronym = alliance.pop("acronym")
         self.score = alliance.pop("score")
         self.color = alliance.pop("color")
@@ -476,7 +559,7 @@ class Alliance:
         self.food = alliance.pop("food")
 
 
-class Alliances(collections.MutableMapping):
+class BaseAlliances(collections.MutableMapping):
     def __init__(self, *args, **kwargs):
         self.mapping = {}
         self.update(kwargs)
@@ -519,6 +602,28 @@ class Alliances(collections.MutableMapping):
         self.pop(value, None)
 
 
+class Alliances(collections.MutableSet):
+    def __init__(self, *args):
+        super(self).__init__()
+        for arg in args:
+            self.add(arg)
+
+    def __contains__(self, item):
+        return super(Alliances, self).__contains__(item)
+
+    def __iter__(self):
+        return super(Alliances, self).__iter__()
+
+    def __len__(self):
+        return super(Alliances, self).__len__()
+
+    def add(self, value) -> None:
+        super(Alliances, self).add(value)
+
+    def discard(self, value) -> None:
+        super(Cities, self).discard(value)
+
+
 class Treaty:
     __slots__ = "tid", "alliance_1", "alliance_2", "type", "date", "turns_left", "url"
 
@@ -526,7 +631,7 @@ class Treaty:
 
     def __init__(self, tid=None, treaty=None):
         self.tid = tid
-        _Treaties.__setitem__(treaty=self)
+        Treaties_.__setitem__(treaty=self)
         if treaty is not None:
             self.update_short(treaty)
 
@@ -544,12 +649,15 @@ class Treaty:
         return self
 
 
-class Treaties(collections.MutableMapping):
+class BaseTreaties(collections.MutableMapping):
     def __init__(self, treaties=None):
         self.mapping = {}
         if treaties is not None:
             for treaty in treaties:
                 self.__setitem__(treaty.tid, treaty)
+
+    def __repr__(self):
+        return str(list(self.mapping.__iter__()))
 
     def __iter__(self):
         return self.mapping.__iter__()
@@ -602,12 +710,12 @@ class Treaties(collections.MutableMapping):
                 self.__setitem__(treaty["id"], _)
 
 
-# Global Variables
+# Global sources of truth
 
-Treaties = Treaties()
-Cities_ = Cities()
-Nations_ = Nations()
-Alliances_ = Alliances()
+Treaties_ = BaseTreaties()
+Cities_ = BaseCities()
+Nations_ = BaseNations()
+Alliances_ = BaseAlliances()
 
 # On accidental run
 if __name__ == "__main__":
