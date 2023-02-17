@@ -179,7 +179,7 @@ class BaseCities(collections.MutableMapping):
 
     def __getitem__(self, cid: Union[int, str]):
         if type(cid) is int:
-            return self.mapping[str(cid)]
+            return self.mapping[cid]
         elif type(cid) is str:
             if cid.isnumeric():
                 return self.mapping[int(cid)]
@@ -209,7 +209,7 @@ class Cities(collections.MutableSet):
 
     @staticmethod
     def update_short(cities=None):
-        Cities_.update_short(cities)
+        Cities_.update_short(cities=cities)
 
     def __str__(self):
         return f"{self.set}"
@@ -235,7 +235,6 @@ class Cities(collections.MutableSet):
 
     def discard(self, value) -> None:
         super(Cities, self).discard(value)
-
 
 
 class Nation:
@@ -272,7 +271,7 @@ class Nation:
             return self.__repr__()
 
     def __repr__(self):
-        return str(self.nid)
+        return f"Nation({self.nid})"
 
     def update_long(self, nation=None):
         if nation is None:
@@ -345,6 +344,7 @@ class Nation:
             return war_range(self.score)
         else:
             raise TypeError(f"{self.__name__}.score is not an int")
+
 
 class BaseNations(collections.MutableMapping):
     """
@@ -479,7 +479,7 @@ class Nations(collections.MutableSet):
         return super(Nations, self).__iter__()
 
     def __len__(self):
-        return super(Nations, self).__len__()
+        return self.set.__len__()
 
     def add(self, value) -> None:
         self.set = self.set + (value,)
@@ -511,8 +511,8 @@ class Alliance:
 
     def __init__(self, aaid=None):
         self.aaid = aaid
-        self.nations = []
-        self.treaties = []
+        self.nations = Nations()
+        self.treaties = Treaties()
         Alliances_[aaid] = self
 
     def __str__(self):
@@ -530,8 +530,8 @@ class Alliance:
                       f"data {{ {Alliance.request_data}, nations{{ { Nation.request_data } }}, " \
                       f"treaties{{ { Treaty.request_data } }} }} }} }}"
             alliance = get_v3(request)["alliances"]["data"][0]
-        self.nations = [nation["id"] for nation in alliance["nations"]]
-        self.treaties = [treaty["id"] for treaty in alliance["treaties"]]
+        self.nations = Nations(*[nation["id"] for nation in alliance["nations"]])
+        self.treaties = Treaties(*[treaty["id"] for treaty in alliance["treaties"]])
 
         self.update_short(alliance)
 
@@ -696,7 +696,7 @@ class BaseTreaties(collections.MutableMapping):
         del self.mapping[tid]
         self.pop(value, None)
 
-    def update_long(self, treaties):
+    def update_long(self, treaties=None):
         if treaties is None:
             request = f"query{{treaties {{data {{ {Treaty.request_data} }}}}}}"
             treaties = get_v3(request)['treaties']['data']
@@ -711,6 +711,44 @@ class BaseTreaties(collections.MutableMapping):
                 _ = Treaty(treaty["id"], treaty)
                 alliance.nations[treaty["id"]] = _
                 self.__setitem__(treaty["id"], _)
+
+
+class Treaties(collections.MutableSet):
+    def __init__(self, *args):
+        super(Treaties, self).__init__()
+        self.set = ()
+        for arg in args:
+            self.add(arg)
+
+    @staticmethod
+    def update_long():
+        Treaties_.update_long()
+
+    def __str__(self):
+        return str(self.set)
+
+    def __contains__(self, item):
+        return super(Treaties, self).__contains__(item)
+
+    def __iter__(self):
+        return super(Treaties, self).__iter__()
+
+    def __len__(self):
+        return self.set.__len__()
+
+    def add(self, value) -> None:
+        self.set = self.set + (value,)
+        Treaties_.__setitem__(tid=value)
+
+    def discard(self, value) -> None:
+        self.set.__delattr__(value)
+
+    def __getattr__(self, item):
+        return Treaties_[item]
+
+    def items(self):
+        return [(tid, Treaties_[tid]) for tid in self.set]
+
 
 
 # Global sources of truth
