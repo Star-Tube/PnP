@@ -5,7 +5,7 @@ key(Key)
 test_nation = Nation(54586)
 # test Nation.update_long()
 test_nation.update_long()
-print(test_nation.cities)
+print(test_nation.cities.items())
 print(Cities_)
 
 #  test Nations.update_long()

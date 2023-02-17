@@ -175,7 +175,7 @@ class BaseCities(collections.MutableMapping):
             else:
                 raise WrongID("City", "cid is not numeric")
         else:
-            raise ValueError
+            raise ValueError(cid)
 
     def __getitem__(self, cid: Union[int, str]):
         if type(cid) is int:
@@ -208,8 +208,8 @@ class Cities(collections.MutableSet):
             self.add(arg)
 
     @staticmethod
-    def update_short():
-        Cities_.update_short()
+    def update_short(cities=None):
+        Cities_.update_short(cities)
 
     def __str__(self):
         return f"{self.set}"
@@ -225,6 +225,9 @@ class Cities(collections.MutableSet):
 
     def __len__(self):
         return self.set.__len__()
+
+    def items(self):
+        return [(cid, Cities_[int(cid)]) for cid in self.set]
 
     def add(self, value) -> None:
         self.set = self.set + (value,)
@@ -278,8 +281,8 @@ class Nation:
                       f"}}}}"
             nation = get_v3(request)['nations']['data'][0]
         try:
-            self.cities = Cities([int(x["id"]) for x in nation["cities"]])
-            self.cities.update_long(nation.pop("cities"))
+            self.cities = Cities(*tuple(int(x["id"]) for x in nation["cities"]))
+            self.cities.update_short(cities=nation.pop("cities"))
         except KeyError as error:
             print(error)
         self.update_short(nation)
@@ -621,7 +624,7 @@ class Alliances(collections.MutableSet):
         super(Alliances, self).add(value)
 
     def discard(self, value) -> None:
-        super(Cities, self).discard(value)
+        super(Alliances, self).discard(value)
 
 
 class Treaty:
