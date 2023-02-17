@@ -178,7 +178,7 @@ class Cities(collections.MutableMapping):
 
     def __getitem__(self, cid: Union[int, str]):
         if type(cid) is int:
-            return self.mapping[cid]
+            return self.mapping[str(cid)]
         elif type(cid) is str:
             if cid.isnumeric():
                 return self.mapping[int(cid)]
@@ -368,6 +368,11 @@ class Nations(collections.MutableMapping):
     def __getitem__(self, nids):
         if type(nids) == int:
             return self.mapping[nids]
+        elif type(nids) == str:
+            try:
+                return self.mapping[int(nids)]
+            except ValueError as E:
+                print(E) # Todo: add logging
 
     def __delitem__(self, nid):
         value = self[nid]
@@ -377,15 +382,16 @@ class Nations(collections.MutableMapping):
     def update_long(self, nations=None, static=True, requirements=None):
         if nations is None:
             if static:
-                request = f"{{nations(id: {self.keys()} first:100){{data{{" \
+                request = f"{{nations(id: {list(self.keys())}, first:100){{data{{" \
                           f"{Nation.request_data} cities{{ {City.request_data} }}" \
-                          f"}}}}"
-                nations = get_v3(request)["nations"]["data"][0]
+                          f"}}}}}}"
+                nations = get_v3(request)["nations"]["data"]
             else:
                 nations = Nations.paginate(requirements, f"{Nation.request_data} cities{{ {City.request_data} }}")
         for nation in nations:
             try:
-                self[nation["id"]].update_long(nation)
+                self[int(nation["id"])].update_long(nation)
+                print(self.mapping)
             except KeyError:
                 self.__setitem__(nation["id"], Nation(nation["id"], nation))
 
