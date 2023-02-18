@@ -1,5 +1,5 @@
 # for now, you have to import using this line:
-from src import Treaty, _Treaties
+from Politics_and_Py.src import Treaty, _Treaties
 # import PnP
 
 x = Treaty(1)
