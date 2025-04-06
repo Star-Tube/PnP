@@ -82,7 +82,7 @@ class City:
             self.update_short(data)
 
     def __str__(self):
-        return self.name, self.cid
+        return self.name
 
     def __repr__(self):
         return f"City({self.cid})"
@@ -92,7 +92,7 @@ class City:
             request = f"cities(id:{self.cid}){{data{{ { City.request_data } }}}}"
             city = get_v3(request)["cities"]["data"][0]
 
-        if self.cid == city.pop("id"):
+        if self.cid == int(city.pop("id")):
             self.name = city.pop("name")
             self.founded = city.pop("date")
             self.infra = city.pop("infrastructure")
@@ -236,6 +236,9 @@ class Cities(collections.MutableSet):
     def discard(self, value) -> None:
         super(Cities, self).discard(value)
 
+    def len(self):
+        return self.__len__()
+
 
 class Nation:
     """
@@ -344,6 +347,19 @@ class Nation:
             return war_range(self.score)
         else:
             raise TypeError(f"{self.__name__}.score is not an int")
+
+    def mmr_check(self, mmr):
+        mmr_reqs = {
+            "soldiers": int(mmr[0])*3000*self.cities.len(),
+            "tanks": int(mmr[1])*250*self.cities.len(),
+            "aircraft": int(mmr[2])*15*self.cities.len(),
+            "ships": int(mmr[3])*5*self.cities.len()
+        }
+        for unit, unit_quantity in self.mil.items():
+            if unit in mmr_reqs.keys():
+                if unit_quantity < mmr_reqs[unit]:
+                    yield unit
+
 
 
 class BaseNations(collections.MutableMapping):
